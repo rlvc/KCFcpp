@@ -1,4 +1,4 @@
-/*
+﻿/*
 
 Tracker based on Kernelized Correlation Filter (KCF) [1] and Circulant Structure with Kernels (CSK) [2].
 CSK is implemented by using raw gray level features, since it is a single-channel filter.
@@ -162,9 +162,9 @@ void KCFTracker::init(const cv::Rect &roi, cv::Mat image)
 {
     _roi = roi;
     assert(roi.width >= 0 && roi.height >= 0);
-    _tmpl = getFeatures(image, 1);
-    _prob = createGaussianPeak(size_patch[0], size_patch[1]);
-    _alphaf = cv::Mat(size_patch[0], size_patch[1], CV_32FC2, float(0));
+    _tmpl = getFeatures(image, 1);//只有第一次初始化的时候，第二个形参才为1，对第一帧特征进行汉宁窗平滑
+    _prob = createGaussianPeak(size_patch[0], size_patch[1]);//创建高斯峰，只有第一帧才用到
+    _alphaf = cv::Mat(size_patch[0], size_patch[1], CV_32FC2, float(0));////alphaf初始化
     //_num = cv::Mat(size_patch[0], size_patch[1], CV_32FC2, float(0));
     //_den = cv::Mat(size_patch[0], size_patch[1], CV_32FC2, float(0));
     train(_tmpl, 1.0); // train with initial frame
@@ -177,18 +177,19 @@ cv::Rect KCFTracker::update(cv::Mat image)
     if (_roi.x >= image.cols - 1) _roi.x = image.cols - 2;
     if (_roi.y >= image.rows - 1) _roi.y = image.rows - 2;
 
-    float cx = _roi.x + _roi.width / 2.0f;
+    float cx = _roi.x + _roi.width / 2.0f;//中心点
     float cy = _roi.y + _roi.height / 2.0f;
 
 
-    float peak_value;
-    cv::Point2f res = detect(_tmpl, getFeatures(image, 0, 1.0f), peak_value);
+    float peak_value; 
+    cv::Point2f res = detect(_tmpl, getFeatures(image, 0, 1.0f), peak_value);//获取response的位置
 
+	//处理尺度变化的情况
     if (scale_step != 1) {
         // Test at a smaller _scale
         float new_peak_value;
         cv::Point2f new_res = detect(_tmpl, getFeatures(image, 0, 1.0f / scale_step), new_peak_value);
-
+		//update roi and other parameter 更新roi区域及其参数
         if (scale_weight * new_peak_value > peak_value) {
             res = new_res;
             peak_value = new_peak_value;
@@ -209,18 +210,20 @@ cv::Rect KCFTracker::update(cv::Mat image)
         }
     }
 
-    // Adjust by cell size and _scale
+    // Adjust by cell size and _scale ????????????cell size????????????????????
     _roi.x = cx - _roi.width / 2.0f + ((float) res.x * cell_size * _scale);
     _roi.y = cy - _roi.height / 2.0f + ((float) res.y * cell_size * _scale);
-
+	//超出边界的情况
     if (_roi.x >= image.cols - 1) _roi.x = image.cols - 1;
     if (_roi.y >= image.rows - 1) _roi.y = image.rows - 1;
     if (_roi.x + _roi.width <= 0) _roi.x = -_roi.width + 2;
     if (_roi.y + _roi.height <= 0) _roi.y = -_roi.height + 2;
 
     assert(_roi.width >= 0 && _roi.height >= 0);
-    cv::Mat x = getFeatures(image, 0);
-    train(x, interp_factor);
+	
+	//上面得到roi新的位置之后，再重新训练得到相关滤波器
+    cv::Mat x = getFeatures(image, 0);//提取新的roi特征
+    train(x, interp_factor);//训练得到新的滤波器
 
     return _roi;
 }
@@ -231,18 +234,23 @@ cv::Point2f KCFTracker::detect(cv::Mat z, cv::Mat x, float &peak_value)
 {
     using namespace FFTTools;
 
-    cv::Mat k = gaussianCorrelation(x, z);
-    cv::Mat res = (real(fftd(complexMultiplication(_alphaf, fftd(k)), true)));
+    cv::Mat k = gaussianCorrelation(x, z);//作相关运算
+    cv::Mat res = (real(fftd(complexMultiplication(_alphaf, fftd(k)), true)));//获得response
 
     //minMaxLoc only accepts doubles for the peak, and integer points for the coordinates
-    cv::Point2i pi;
-    double pv;
+    cv::Point2i pi;//存放响应response最大值所在的位置
+    double pv;//pv存放响应response最大值
+	//找到输入数组的最大/最小值，此处寻找最大值，pv存放最大值，pi存放最大值所在的位置
     cv::minMaxLoc(res, NULL, &pv, NULL, &pi);
     peak_value = (float) pv;
 
     //subpixel peak estimation, coordinates will be non-integer
     cv::Point2f p((float)pi.x, (float)pi.y);
-
+	//
+	//target location is at the maximum response. we must take into
+	//account the fact that, if the target doesn't move, the peak
+	//will appear at the top - left corner, not at the center(this is
+	//discussed in the paper).the responses wrap around cyclically.
     if (pi.x > 0 && pi.x < res.cols-1) {
         p.x += subPixelPeak(res.at<float>(pi.y, pi.x-1), peak_value, res.at<float>(pi.y, pi.x+1));
     }
@@ -254,7 +262,7 @@ cv::Point2f KCFTracker::detect(cv::Mat z, cv::Mat x, float &peak_value)
     p.x -= (res.cols) / 2;
     p.y -= (res.rows) / 2;
 
-    return p;
+    return p; //responses最大响应对应的目标位置
 }
 
 // train tracker with a single image
@@ -281,7 +289,8 @@ void KCFTracker::train(cv::Mat x, float train_interp_factor)
 
 }
 
-// Evaluates a Gaussian kernel with bandwidth SIGMA for all relative shifts between input images X and Y, which must both be MxN. They must    also be periodic (ie., pre-processed with a cosine window).
+// Evaluates a Gaussian kernel with bandwidth SIGMA for all relative shifts between input images X and Y, 
+// which must both be MxN. They must    also be periodic (ie., pre-processed with a cosine window).
 cv::Mat KCFTracker::gaussianCorrelation(cv::Mat x1, cv::Mat x2)
 {
     using namespace FFTTools;
@@ -346,7 +355,7 @@ cv::Mat KCFTracker::getFeatures(const cv::Mat & image, bool inithann, float scal
     float cx = _roi.x + _roi.width / 2;
     float cy = _roi.y + _roi.height / 2;
 
-    if (inithann) {
+    if (inithann) {//汉宁窗??????
         int padded_w = _roi.width * padding;
         int padded_h = _roi.height * padding;
         
@@ -395,8 +404,13 @@ cv::Mat KCFTracker::getFeatures(const cv::Mat & image, bool inithann, float scal
     extracted_roi.y = cy - extracted_roi.height / 2;
 
     cv::Mat FeaturesMap;  
+	//obtain a subwindow for detection at the position from last
+	//	frame, and convert to Fourier domain(its size is unchanged)
+	// 在本帧中获取前一帧目标位置的子窗口
     cv::Mat z = RectTools::subwindow(image, extracted_roi, cv::BORDER_REPLICATE);
-    
+    //然后要对z提取特征，然后再到频域上与相关滤波器作相关，得到response之后产生新的目标位置
+	//////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////
     if (z.cols != _tmpl_sz.width || z.rows != _tmpl_sz.height) {
         cv::resize(z, z, _tmpl_sz);
     }   
@@ -416,7 +430,7 @@ cv::Mat KCFTracker::getFeatures(const cv::Mat & image, bool inithann, float scal
         FeaturesMap = FeaturesMap.t();
         freeFeatureMapObject(&map);
 
-        // Lab features
+        // Lab features  //当lab = false时，用不到
         if (_labfeatures) {
             cv::Mat imgLab;
             cvtColor(z, imgLab, CV_BGR2Lab);
@@ -463,7 +477,7 @@ cv::Mat KCFTracker::getFeatures(const cv::Mat & image, bool inithann, float scal
             FeaturesMap.push_back(outputLab);
         }
     }
-    else {
+    else { //raw pixel
         FeaturesMap = RectTools::getGrayImage(z);
         FeaturesMap -= (float) 0.5; // In Paper;
         size_patch[0] = z.rows;
@@ -471,11 +485,13 @@ cv::Mat KCFTracker::getFeatures(const cv::Mat & image, bool inithann, float scal
         size_patch[2] = 1;  
     }
     
-    if (inithann) {
+    if (inithann) {//只有在第一帧的时候才会用到，创建/初始化 汉宁窗
         createHanningMats();
     }
-    FeaturesMap = hann.mul(FeaturesMap);
-    return FeaturesMap;
+    FeaturesMap = hann.mul(FeaturesMap);//特征与汉宁窗相乘，起平滑作用
+    return FeaturesMap; //最后返回的是与汉宁窗相乘后的结果，，，后续还要进行与相关滤波器作相关
+	//////////////////////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////
 }
     
 // Initialize Hanning window. Function called only in the first frame.
@@ -511,7 +527,8 @@ void KCFTracker::createHanningMats()
 float KCFTracker::subPixelPeak(float left, float center, float right)
 {   
     float divisor = 2 * center - right - left;
-
+	//divisor = 0.28 0.35 0.27 0.37 0.30 0.33 0.24 0.38
+	//printf("%f \n", divisor);
     if (divisor == 0)
         return 0;
     

@@ -1,4 +1,4 @@
-/*
+﻿/*
 
 Tracker based on Kernelized Correlation Filter (KCF) [1] and Circulant Structure with Kernels (CSK) [2].
 CSK is implemented by using raw gray level features, since it is a single-channel filter.
@@ -82,10 +82,11 @@ the use of this software, even if advised of the possibility of such damage.
 
 #pragma once
 
-#include "tracker.h"
 
+#include "tracker.h"
 #ifndef _OPENCV_KCFTRACKER_HPP_
 #define _OPENCV_KCFTRACKER_HPP_
+
 #endif
 
 class KCFTracker : public Tracker
@@ -134,18 +135,20 @@ protected:
     float subPixelPeak(float left, float center, float right);
 
     cv::Mat _alphaf;
-    cv::Mat _prob;
-    cv::Mat _tmpl;
+    cv::Mat _prob; //fft2(y)
+    cv::Mat _tmpl; //提取的特征
     cv::Mat _num;
     cv::Mat _den;
     cv::Mat _labCentroids;
 
 private:
     int size_patch[3];
-    cv::Mat hann;
+    cv::Mat hann; //汉宁窗
     cv::Size _tmpl_sz;
     float _scale;
     int _gaussian_size;
     bool _hogfeatures;
     bool _labfeatures;
 };
+
+

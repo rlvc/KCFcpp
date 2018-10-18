@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(test)
+project(KCFTrackers)
 
 find_package(OpenCV REQUIRED)
 
@@ -8,7 +8,7 @@ ADD_DEFINITIONS("-std=c++0x -O3")
 endif(NOT WIN32)
 
 include_directories(src) 
-FILE(GLOB_RECURSE sourcefiles "src/*.cpp")
+FILE(GLOB_RECURSE sourcefiles "src/*")
 add_executable( KCF ${sourcefiles} )
 target_link_libraries( KCF ${OpenCV_LIBS})
 
