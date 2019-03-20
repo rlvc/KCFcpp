@@ -18,4 +18,7 @@ void writeLinemod(const cv::Ptr<cv::linemod::Detector>& detector, const std::str
 
 void drawResponse(const std::vector<cv::linemod::Template>& templates,
     int num_modalities, cv::Mat& dst, cv::Point offset, int T);
+
+void drawResponse(const std::vector<cv::linemod::Template>& templates,
+    int num_modalities, cv::Mat& dst, cv::Point offset, int T, cv::Mat current_template);
 #endif

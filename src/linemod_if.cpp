@@ -261,7 +261,7 @@ int main___s(int argc, char * argv[])
 
                 // Draw matching template 
                 const std::vector<cv::linemod::Template>& templates = detector->getTemplates(m.class_id, m.template_id);
-                drawResponse(templates, num_modalities, display, cv::Point(m.x, m.y), detector->getT(0));
+                drawResponse(templates, num_modalities, display, cv::Point(m.x, m.y), detector->getT(0), display);
 
                 if (learn_online == true)
                 {
@@ -699,4 +699,55 @@ void drawResponse(const std::vector<cv::linemod::Template>& templates,
             cv::circle(dst, pt, T / 2, color,2);
         }
     }
+}
+
+void drawResponse(const std::vector<cv::linemod::Template>& templates,
+    int num_modalities, cv::Mat& dst, cv::Point offset, int T, Mat current_template)
+{
+    int min_x = 1000;
+    int min_y = 1000;
+    int max_x = 0;
+    int max_y = 0;
+    for (int i = 0; i < current_template.rows; i++)
+    {
+        for (int j = 0; j < current_template.cols; j++)
+        {
+            if (current_template.at<Vec3b>(i, j)[0] != 0 || 
+                current_template.at<Vec3b>(i, j)[1] != 0 || 
+                current_template.at<Vec3b>(i, j)[2] != 0)
+            {
+                if (i < min_x)
+                    min_x = i;
+                if (i > max_x)
+                    max_x = i;
+                if (j < min_y)
+                    min_y = j;
+                if (j > max_y)
+                    max_y = j;
+            }
+        }
+    }
+    //if (min_x >= 1) min_x -= 1;
+    //if (min_y >= 1) min_y -= 1;
+    if (max_x < current_template.rows - 1) max_x += 1;
+    if (max_y < current_template.cols - 1) max_y += 1;
+    int dist_x = max_x - min_x;
+    int dist_y = max_y - min_y;
+    for (int i = min_x; i < max_x; i++)
+    {
+        for (int j = min_y; j < max_y; j++)
+        {
+            if (current_template.at<Vec3b>(i, j)[0] != 0 ||
+                current_template.at<Vec3b>(i, j)[1] != 0 ||
+                current_template.at<Vec3b>(i, j)[2] != 0)
+            {
+                dst.at<Vec3b>(i - min_x + offset.y, j - min_y + offset.x)[0] = current_template.at<Vec3b>(i, j)[0];
+                dst.at<Vec3b>(i - min_x + offset.y, j - min_y + offset.x)[1] = current_template.at<Vec3b>(i, j)[1];
+                dst.at<Vec3b>(i - min_x + offset.y, j - min_y + offset.x)[2] = current_template.at<Vec3b>(i, j)[2];
+            }
+        }
+    }
+
+
+    
 }

@@ -24,22 +24,30 @@ struct TLinemodPackage
 };
 
 bool LoadScanPackage(TLinemodPackage &tScanPackage, const char *pDir);
-
+void Convert(const char *pDir);
 void linemod_train(const string &strConfigFile)
 {
     Timer extract_timer;
     cv::Ptr<cv::linemod::Detector> detector = cv::linemod::getDefaultLINE();;
     string filename = strConfigFile + "/linemod_templates.yml";
     string class_id = string("coke");
-    TLinemodPackage tLinemodPackage;
-    LoadScanPackage(tLinemodPackage, strConfigFile.c_str());
+   /* TLinemodPackage tLinemodPackage;
+    LoadScanPackage(tLinemodPackage, strConfigFile.c_str());*/
     extract_timer.start();
-    for (size_t i = 0; i < tLinemodPackage.vtLinemodFrame.size(); i++)
+    Convert(strConfigFile.c_str());
+    int nFrame = 0;
+    while (1)
     {
+        char name[32] = { 0 };
+        sprintf(name, "%d", nFrame);
+        string strGrayImg = strConfigFile + string("/gray/") + string(name) + string(".png");
+        Mat gray = imread(strGrayImg);
+        if (gray.empty()) break;
+        cout << "\rLoading Frame " << nFrame;
         vector<Mat> cur_source = vector<Mat>();
-        cur_source.push_back(tLinemodPackage.vtLinemodFrame[i].tGrayImg);
-        int template_id = detector->addTemplate(cur_source, class_id, tLinemodPackage.vtLinemodFrame[i].tMask);
-        
+        cur_source.push_back(gray);
+        int template_id = detector->addTemplate(cur_source, class_id, Mat());
+
         if (template_id != -1)
         {
             printf("*** Added template (id %d) as object's %dth template***\n",
@@ -50,9 +58,27 @@ void linemod_train(const string &strConfigFile)
         {
             printf("Try adding template but failed.\n");
         }
+        nFrame++;
     }
+    //for (size_t i = 0; i < tLinemodPackage.vtLinemodFrame.size(); i++)
+    //{
+    //    vector<Mat> cur_source = vector<Mat>();
+    //    cur_source.push_back(tLinemodPackage.vtLinemodFrame[i].tGrayImg);
+    //    int template_id = detector->addTemplate(cur_source, class_id, tLinemodPackage.vtLinemodFrame[i].tMask);
+    //    
+    //    if (template_id != -1)
+    //    {
+    //        printf("*** Added template (id %d) as object's %dth template***\n",
+    //            template_id, detector->numTemplates());
+    //        //printf("Extracted at (%d, %d) size %dx%d\n", bb.x, bb.y, bb.width, bb.height); 
+    //    }
+    //    else
+    //    {
+    //        printf("Try adding template but failed.\n");
+    //    }
+    //}
     extract_timer.stop();
-    printf("Training: %.2fs, average %.2fs\n", extract_timer.time(), extract_timer.time() / (float)tLinemodPackage.vtLinemodFrame.size());
+    printf("Training: %.2fs, average %.2fs\n", extract_timer.time(), extract_timer.time() / nFrame);
     writeLinemod(detector, filename);
     system("pause");
 }
